@@ -1,43 +1,25 @@
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_city_config --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=yzb_t_city_config --table-compare=true
-
-需要修改
-
+### 20200107
+添加了三个参数 source-tablename, target-tablename, table-compare, 调用实例如下
 
 
+#### 期望实现的功能
+输出能够将target-tablename表结构变更为和source-tablename表结构一致的SQL语句。
 
-编译方法：
-cd pgquarrel
-cmake -DCMAKE_INSTALL_PREFIX=/dbdir/shiguangsheng/temp/pgquarrel/bin/ -DCMAKE_PREFIX_PATH=/usr/pgsql-10/
-make
-make install
+#### 需要实现的详细列表包括
+- 列：名称、类型、是否非空、默认值等
+- 索引
+- 约束
+- 序列
+- 权限
+- 触发器
+- 函数
+- 分区表
 
-说明：如果pg_config的配置不对，可以直接改CMakeLists.txt，直接指定路径：set(PGCONFIG_PATH /usr/pgsql-10/bin/pg_config)
-
-
-测试方法
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_city_config --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=yzb_t_city_config --table-compare=true
-
-
-
-####
-hellobike@normal.
-
-export LD_LIBRARY_PATH=$HOME/pgquarrel/:$LD_LIBRARY_PATH
-./pgquarrel --help
-
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_city_config --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=yzb_t_city_config --table-compare=true
+#### 需要注意的细节包括
+- 索引名称、约束名称等需要变更
+- 分区表继承方式 pg10和9.4 差异
 
 
-gdb pgquarrel
-set args --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config
-b main
+#### 已经实现的功能
+- 列：名称、类型、是否非空
 
-
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_scenic_area_rule --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=t_scenic_area_rule --table-compare=true
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_ride_card --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=t_ride_card --table-compare=true
-./pgquarrel --source-dbname=bike_config --source-host=10.111.10.63 --source-port=3007 --source-username=bike_config --source-tablename=t_bike_area_sms_push_template --target-dbname=bike_config --target-host=10.111.40.139 --target-port=3007 --target-username=bike_config --target-tablename=t_bike_area_sms_push_template --table-compare=true
-
-
-t_scenic_area_rule
-t_ride_card
-t_bike_area_sms_push_template

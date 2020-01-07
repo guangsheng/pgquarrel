@@ -5270,110 +5270,47 @@ compareTables(char *s_table, char *t_table)
 	PQLTable	*tables2 = NULL;	/* source */
 	int			ntables1 = 0;		/* # of tables */
 	int			ntables2 = 0;
-	int			i, j;
 
 	/* false is not return if there is an error */
-	tables1 = getRegularTable(conn1, &ntables1, s_table);
+	tables1 = getRegularTable(conn1, &ntables1, t_table);
 	getCheckConstraints(conn1, tables1, ntables1);
 	getFKConstraints(conn1, tables1, ntables1);
 	getPKConstraints(conn1, tables1, ntables1);
 
-	tables2 = getRegularTable(conn2, &ntables2, t_table);
+	tables2 = getRegularTable(conn2, &ntables2, s_table);
 	getCheckConstraints(conn2, tables2, ntables2);
 	getFKConstraints(conn2, tables2, ntables2);
 	getPKConstraints(conn2, tables2, ntables2);
 
-	for (i = 0; i < ntables1; i++)
-		logNoise("server1: %s.%s %u", tables1[i].obj.schemaname,
-				 tables1[i].obj.objectname, tables1[i].obj.oid);
+	tables2->obj.objectname = formatObjectIdentifier(t_table);
 
-	for (i = 0; i < ntables2; i++)
-		logNoise("server2: %s.%s %u", tables2[i].obj.schemaname,
-				 tables2[i].obj.objectname, tables2[i].obj.oid);
-
-	/*
-	 * We have two sorted lists. Let's figure out which elements are not in the
-	 * other list.
-	 * We have two sorted lists. The strategy is transverse both lists only once
-	 * to figure out relations not presented in the other list.
-	 */
-	i = j = 0;
-	while (i < ntables1 || j < ntables2)
-	{
-		/* End of tables1 list. Print tables2 list until its end. */
-		if (i == ntables1)
+	if (0 != ntables1 && 0 != ntables2) {
+		logDebug("table %s.%s: server1 server2", tables1[0].obj.schemaname,
+			 tables1[0].obj.objectname);
+		getTableAttributes(conn1, &tables1[0]);
+		getTableAttributes(conn2, &tables2[0]);
+		getOwnedBySequences(conn1, &tables1[0]);
+		getOwnedBySequences(conn2, &tables2[0]);
+		if (options.securitylabels)
 		{
-			logDebug("table %s.%s: server2", tables2[j].obj.schemaname,
-					 tables2[j].obj.objectname);
-
-			getTableAttributes(conn2, &tables2[j]);
-			getOwnedBySequences(conn2, &tables2[j]);
-			if (options.securitylabels)
-				getTableSecurityLabels(conn2, &tables2[j]);
-
-			dumpCreateTable(fpre, fpost, &tables2[j]);
-
-			j++;
-			qstat.tableadded++;
+			getTableSecurityLabels(conn1, &tables1[0]);
+			getTableSecurityLabels(conn2, &tables2[0]);
 		}
-		/* End of tables2 list. Print tables1 list until its end. */
-		else if (j == ntables2)
-		{
-			logDebug("table %s.%s: server1", tables1[i].obj.schemaname,
-					 tables1[i].obj.objectname);
-
-			dumpDropTable(fpost, &tables1[i]);
-
-			i++;
-			qstat.tableremoved++;
-		}
-		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) == 0)
-		{
-			logDebug("table %s.%s: server1 server2", tables1[i].obj.schemaname,
-					 tables1[i].obj.objectname);
-
-			getTableAttributes(conn1, &tables1[i]);
-			getTableAttributes(conn2, &tables2[j]);
-			getOwnedBySequences(conn1, &tables1[i]);
-			getOwnedBySequences(conn2, &tables2[j]);
-			if (options.securitylabels)
-			{
-				getTableSecurityLabels(conn1, &tables1[i]);
-				getTableSecurityLabels(conn2, &tables2[j]);
-			}
-
-			dumpAlterTable(fpre, &tables1[i], &tables2[j]);
-
-			i++;
-			j++;
-		}
-		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) < 0)
-		{
-			logDebug("table %s.%s: server1", tables1[i].obj.schemaname,
-					 tables1[i].obj.objectname);
-
-			dumpDropTable(fpost, &tables1[i]);
-
-			i++;
-			qstat.tableremoved++;
-		}
-		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) > 0)
-		{
-			logDebug("table %s.%s: server2", tables2[j].obj.schemaname,
-					 tables2[j].obj.objectname);
-
-			getTableAttributes(conn2, &tables2[j]);
-			getOwnedBySequences(conn2, &tables2[j]);
-			if (options.securitylabels)
-				getTableSecurityLabels(conn2, &tables2[j]);
-
-			dumpCreateTable(fpre, fpost, &tables2[j]);
-
-			j++;
-			qstat.tableadded++;
-		}
+		dumpAlterTable(fpre, &tables1[0], &tables2[0]);
 	}
+	else if (0 != ntables2)
+	{
+		logDebug("table %s.%s: server2", tables2[0].obj.schemaname,
+				 tables2[0].obj.objectname);
 
+		getTableAttributes(conn2, &tables2[0]);
+		getOwnedBySequences(conn2, &tables2[0]);
+		if (options.securitylabels)
+			getTableSecurityLabels(conn2, &tables2[0]);
+
+		dumpCreateTable(fpre, fpost, &tables2[0]);
+	}
+	
 	freeTables(tables1, ntables1);
 	freeTables(tables2, ntables2);
 }
