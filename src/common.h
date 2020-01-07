@@ -93,6 +93,7 @@ typedef struct QuarrelGeneralOptions
 	bool			trigger;
 	bool			type;
 	bool			view;
+	bool			tablecompare;
 } QuarrelGeneralOptions;
 
 typedef struct QuarrelDatabaseOptions
@@ -102,6 +103,7 @@ typedef struct QuarrelDatabaseOptions
 	char			*username;
 	char			*password;
 	char			*dbname;
+	char            *tablename;
 	bool			istarget;
 	bool			promptpassword;
 } QuarrelDatabaseOptions;

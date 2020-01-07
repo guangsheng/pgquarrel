@@ -65,6 +65,7 @@
 
 
 static PQLTable *getTables(PGconn *c, int *n, char k);
+static PQLTable *getTable(PGconn *c, int *n, char k, const char *table_name);
 static void getParentTables(PGconn *c, PQLTable *t);
 static void dumpAddColumn(FILE *output, PQLTable *t, int i);
 static void dumpRemoveColumn(FILE *output, PQLTable *t, int i);
@@ -2801,4 +2802,232 @@ dumpAlterTable(FILE *output, PQLTable *a, PQLTable *b)
 	free(tabname1);
 	free(schema2);
 	free(tabname2);
+}
+
+//shiguangsheng
+PQLTable *
+getRegularTable(PGconn *c, int *n, const char* talbe)
+{
+	return getTable(c, n, 'r', talbe);
+}
+
+PQLTable *
+getTable(PGconn *c, int *n, char k, const char *table_name)
+{
+	PQLTable	*t;
+	PGresult	*res;
+	int			i;
+	char		*kind;
+	const char *paramValues[1];
+
+	if (PGQ_IS_REGULAR_OR_PARTITIONED_TABLE(k))
+		kind = strdup("table");
+	else if (PGQ_IS_FOREIGN_TABLE(k))
+		kind = strdup("foreign table");
+	else
+	{
+		logError("kind is not a regular, partitioned or foreign table");
+		exit(EXIT_FAILURE);
+	}
+
+	logNoise("%s: server version: %d", kind, PQserverVersion(c));
+	paramValues[0] = table_name;
+
+	/* FIXME relpersistence (9.1)? */
+	/*
+	 * XXX Using 'v' (void) to represent unsupported replica identity
+	 */
+	if (PQserverVersion(c) >= 100000)
+	{
+		if (PGQ_IS_REGULAR_OR_PARTITIONED_TABLE(k))
+		{
+			//TODO COREDUMP
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, relreplident, reloftype, o.nspname AS typnspname, y.typname, c.relispartition, pg_get_partkeydef(c.oid) AS partitionkeydef, pg_get_expr(c.relpartbound, c.oid) AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind IN ('r', 'p') AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+		else if (PGQ_IS_FOREIGN_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, relreplident, reloftype, o.nspname AS typnspname, y.typname, c.relispartition, pg_get_partkeydef(c.oid) AS partitionkeydef, pg_get_expr(c.relpartbound, c.oid) AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind = 'f' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+	}
+	else if (PQserverVersion(c) >= 90400)
+	{
+		if (PGQ_IS_REGULAR_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, relreplident, reloftype, o.nspname AS typnspname, y.typname, false AS relispartition, NULL AS partitionkeydef, NULL AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind = 'r' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+		else if (PGQ_IS_FOREIGN_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, relreplident, reloftype, o.nspname AS typnspname, y.typname, false AS relispartition, NULL AS partitionkeydef, NULL AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind = 'f' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+	}
+	else if (PQserverVersion(c) >= 90100)	/* extension support */
+	{
+		if (PGQ_IS_REGULAR_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, 'v' AS relreplident, reloftype, o.nspname AS typnspname, y.typname, false AS relispartition, NULL AS partitionkeydef, NULL AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind = 'r' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+		else if (PGQ_IS_FOREIGN_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, c.relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, 'v' AS relreplident, reloftype, o.nspname AS typnspname, y.typname, false AS relispartition, NULL AS partitionkeydef, NULL AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) LEFT JOIN (pg_type y INNER JOIN pg_namespace o ON (y.typnamespace = o.oid)) ON (c.reloftype = y.oid) WHERE relkind = 'f' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE t.oid = d.objid AND d.deptype = 'e') and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+	}
+	else
+	{
+		if (PGQ_IS_REGULAR_TABLE(k))
+		{
+			res = PQexecParams(c,
+						 "SELECT c.oid, n.nspname, c.relname, c.relkind, t.spcname AS tablespacename, 'p' AS relpersistence, array_to_string(c.reloptions, ', ') AS reloptions, obj_description(c.oid, 'pg_class') AS description, pg_get_userbyid(c.relowner) AS relowner, relacl, 'v' AS relreplident, 0 AS reloftype, NULL AS typnspname, NULL AS typname, false AS relispartition, NULL AS partitionkeydef, NULL AS partitionbound, c.relhassubclass FROM pg_class c INNER JOIN pg_namespace n ON (c.relnamespace = n.oid) LEFT JOIN pg_tablespace t ON (c.reltablespace = t.oid) WHERE relkind = 'r' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' and c.relname = $1 ORDER BY n.nspname, relname", 1, NULL, paramValues, NULL, NULL, 0);
+		}
+		else
+		{
+			logError("this version does not support foreign table");
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
+		logError("query failed: %s", PQresultErrorMessage(res));
+		PQclear(res);
+		PQfinish(c);
+		/* XXX leak another connection? */
+		exit(EXIT_FAILURE);
+	}
+
+	*n = PQntuples(res);
+	if (*n > 0)
+		t = (PQLTable *) malloc(*n * sizeof(PQLTable));
+	else
+		t = NULL;
+
+	logDebug("number of %ss in server: %d", kind, *n);
+
+	for (i = 0; i < *n; i++)
+	{
+		char	*withoutescape;
+
+		t[i].obj.oid = strtoul(PQgetvalue(res, i, PQfnumber(res, "oid")), NULL, 10);
+		t[i].obj.schemaname = strdup(PQgetvalue(res, i, PQfnumber(res, "nspname")));
+		t[i].obj.objectname = strdup(PQgetvalue(res, i, PQfnumber(res, "relname")));
+		t[i].kind = PQgetvalue(res, i, PQfnumber(res, "relkind"))[0];
+		if (PQgetisnull(res, i, PQfnumber(res, "tablespacename")))
+			t[i].tbspcname = NULL;
+		else
+			t[i].tbspcname = strdup(PQgetvalue(res, i, PQfnumber(res, "tablespacename")));
+		t[i].unlogged = (PQgetvalue(res, i, PQfnumber(res,
+									"relpersistence"))[0] == 'u');
+
+		/*
+		 * These values are not assigned here (see getTableAttributes), but
+		 * default values are essential to avoid having trouble in freeTables.
+		 */
+		t[i].nattributes = 0;
+		t[i].attributes = NULL;
+		t[i].ncheck = 0;
+		t[i].check = NULL;
+		t[i].nfk = 0;
+		t[i].fk = NULL;
+		t[i].pk.conname = NULL;
+		t[i].pk.condef = NULL;
+		t[i].pk.comment = NULL;
+		t[i].seqownedby = NULL;
+		t[i].attownedby = NULL;
+		t[i].nownedby = 0;
+
+		if (PQgetisnull(res, i, PQfnumber(res, "reloptions")))
+			t[i].reloptions = NULL;
+		else
+			t[i].reloptions = strdup(PQgetvalue(res, i, PQfnumber(res, "reloptions")));
+		if (PQgetisnull(res, i, PQfnumber(res, "description")))
+			t[i].comment = NULL;
+		else
+		{
+			withoutescape = PQgetvalue(res, i, PQfnumber(res, "description"));
+			t[i].comment = PQescapeLiteral(c, withoutescape, strlen(withoutescape));
+			if (t[i].comment == NULL)
+			{
+				logError("escaping comment failed: %s", PQerrorMessage(c));
+				PQclear(res);
+				PQfinish(c);
+				/* XXX leak another connection? */
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		t[i].owner = strdup(PQgetvalue(res, i, PQfnumber(res, "relowner")));
+		if (PQgetisnull(res, i, PQfnumber(res, "relacl")))
+			t[i].acl = NULL;
+		else
+			t[i].acl = strdup(PQgetvalue(res, i, PQfnumber(res, "relacl")));
+
+		t[i].relreplident = *(PQgetvalue(res, i, PQfnumber(res, "relreplident")));
+		/* assigned iif REPLICA IDENTITY USING INDEX; see getTableAttributes() */
+		t[i].relreplidentidx = NULL;
+
+		if (PQgetisnull(res, i, PQfnumber(res, "typname")))
+		{
+			t[i].reloftype.oid = InvalidOid;
+			t[i].reloftype.schemaname = NULL;
+			t[i].reloftype.objectname = NULL;
+		}
+		else
+		{
+			t[i].reloftype.oid = strtoul(PQgetvalue(res, i, PQfnumber(res, "reloftype")),
+										 NULL, 10);
+			t[i].reloftype.schemaname = strdup(PQgetvalue(res, i, PQfnumber(res,
+											   "typnspname")));
+			t[i].reloftype.objectname = strdup(PQgetvalue(res, i, PQfnumber(res,
+											   "typname")));
+		}
+
+		if (PGQ_IS_PARTITIONED_TABLE(t[i].kind))
+			t[i].partitionkey = strdup(PQgetvalue(res, i, PQfnumber(res,
+												  "partitionkeydef")));
+		else
+			t[i].partitionkey = NULL;
+
+		t[i].partition = (PQgetvalue(res, i, PQfnumber(res,
+									 "relispartition"))[0] == 't');
+		if (t[i].partition)
+		{
+			t[i].partitionbound = strdup(PQgetvalue(res, i, PQfnumber(res,
+													"partitionbound")));
+			getParentTables(c, &t[i]);
+		}
+		else
+		{
+			t[i].partitionbound = NULL;
+			t[i].nparent = 0;
+			t[i].parent = NULL;
+		}
+
+		/*
+		 * Foreign table properties are not assigned here (see
+		 * getForeignTableProperties), but default values are essential to
+		 * avoid having trouble in freeTables.
+		 */
+		t[i].servername = NULL;
+		t[i].ftoptions = NULL;
+
+		/*
+		 * Security labels are not assigned here (see getTableSecurityLabels),
+		 * but default values are essential to avoid having trouble in
+		 * freeTables.
+		 */
+		t[i].nseclabels = 0;
+		t[i].seclabels = NULL;
+
+		logDebug("%s \"%s\".\"%s\"", kind, t[i].obj.schemaname, t[i].obj.objectname);
+	}
+
+	PQclear(res);
+	free(kind);
+
+	return t;
 }

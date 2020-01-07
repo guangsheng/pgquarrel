@@ -67,6 +67,7 @@ typedef struct PQLTable
 
 PQLTable *getRegularTables(PGconn *c, int *n);
 PQLTable *getForeignTables(PGconn *c, int *n);
+PQLTable *getRegularTable(PGconn *c, int *n, const char* talbe);
 
 void getForeignTableProperties(PGconn *c, PQLTable *t, int n);
 void getTableAttributes(PGconn *c, PQLTable *t);

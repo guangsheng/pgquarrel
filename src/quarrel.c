@@ -176,6 +176,7 @@ static void quarrelRangeTypes();
 static void quarrelTypes();
 static void quarrelUserMappings();
 static void quarrelViews();
+static void compareTables(char *s_table, char *t_table);
 
 static int
 compareMajorVersion(int a, int b)
@@ -301,16 +302,17 @@ help(void)
 	printf("      --source-port=PORT        server port\n");
 	printf("      --source-username=NAME    user name\n");
 	printf("      --source-no-password      never prompt for password\n");
+	printf("      --source-tablename    compare source table and target table\n");
 	printf("\nTarget options:\n");
 	printf("      --target-dbname=DBNAME    database name or connection string\n");
 	printf("      --target-host=HOSTNAME    server host or socket directory\n");
 	printf("      --target-port=PORT        server port\n");
 	printf("      --target-username=NAME    user name\n");
 	printf("      --target-no-password      never prompt for password\n");
+	printf("      --target-tablename    compare source table and target table\n");
 	printf("\n");
 	printf("  --help                        show this help, then exit\n");
 	printf("  --version                     output version information, then exit\n");
-	printf("\nReport bugs to <euler@timbira.com.br>.\n");
 }
 
 static void
@@ -4612,11 +4614,14 @@ int main(int argc, char *argv[])
 		{"source-port", required_argument, NULL, 4},
 		{"source-username", required_argument, NULL, 5},
 		{"source-no-password", no_argument, NULL, 38},
+		{"source-tablename", required_argument, NULL, 45},
 		{"target-dbname", required_argument, NULL, 6},
 		{"target-host", required_argument, NULL, 7},
 		{"target-port", required_argument, NULL, 8},
 		{"target-username", required_argument, NULL, 9},
 		{"target-no-password", no_argument, NULL, 39},
+		{"target-tablename", required_argument, NULL, 46},
+		{"table-compare", required_argument, NULL, 47},
 		{"aggregate", required_argument, NULL, 10},
 		{"cast", required_argument, NULL, 11},
 		{"collation", required_argument, NULL, 12},
@@ -4891,6 +4896,16 @@ int main(int argc, char *argv[])
 				gopts.transform = parseBoolean("transform", optarg);
 				gopts_given.transform = true;
 				break;
+			case 45:
+				sopts.tablename = strdup(optarg);
+				break;
+			case 46:
+				topts.tablename = strdup(optarg);
+				break;
+			case 47:
+				gopts.tablecompare = parseBoolean("table-compare", optarg);
+				gopts_given.tablecompare = true;
+				break;
 			default:
 				fprintf(stderr, "Try \"%s --help\" for more information.\n", PGQ_NAME);
 				exit(EXIT_FAILURE);
@@ -4986,6 +5001,10 @@ int main(int argc, char *argv[])
 		options.type = gopts.type;
 	if (gopts_given.view)
 		options.view = gopts.view;
+	if (gopts_given.tablecompare)
+		options.tablecompare = gopts.tablecompare;
+	else
+		options.tablecompare = false;
 
 	if (sopts.dbname)
 		opts.source.dbname = sopts.dbname;
@@ -4995,6 +5014,8 @@ int main(int argc, char *argv[])
 		opts.source.port = sopts.port;
 	if (sopts.username)
 		opts.source.username = sopts.username;
+	if (sopts.tablename)
+		opts.source.tablename = sopts.tablename;
 	if (source_prompt_given)
 		opts.source.promptpassword = sopts.promptpassword;
 
@@ -5006,6 +5027,8 @@ int main(int argc, char *argv[])
 		opts.target.port = topts.port;
 	if (topts.username)
 		opts.target.username = topts.username;
+	if (topts.tablename)
+		opts.target.tablename = topts.tablename;
 	if (target_prompt_given)
 		opts.target.promptpassword = topts.promptpassword;
 
@@ -5103,80 +5126,92 @@ int main(int argc, char *argv[])
 	 * (in a reverse order -- to solve dependency problems).
 	 * Only selected objects will be compared.
 	 */
-
-	if (options.fdw)
+	//shiguangsheng
+	if (options.tablecompare){
+		if (NULL == opts.source.tablename || NULL == opts.target.tablename){
+		    logError("opts.source.tablename or opts.target.tablename is null");
+		    exit(EXIT_FAILURE);
+		}
+		compareTables(opts.source.tablename, opts.target.tablename);
+	}
+	else
 	{
-		quarrelForeignDataWrappers();
-		quarrelForeignServers();
-		quarrelUserMappings();
+		if (options.fdw)
+		{
+			quarrelForeignDataWrappers();
+			quarrelForeignServers();
+			quarrelUserMappings();
+		}
+
+		if (options.language)
+			quarrelLanguages();
+		if (options.schema)
+			quarrelSchemas();
+		if (options.extension)
+			quarrelExtensions();
+		if (options.accessmethod)
+			quarrelAccessMethods();
+
+		if (options.cast)
+			quarrelCasts();
+		if (options.collation)
+			quarrelCollations();
+		if (options.conversion)
+			quarrelConversions();
+		if (options.domain)
+			quarrelDomains();
+		if (options.type)
+			quarrelTypes();
+		if (options.operator)
+		{
+			quarrelOperators();
+			quarrelOperatorFamilies();
+			quarrelOperatorClasses();
+		}
+		if (options.sequence)
+			quarrelSequences();
+		if (options.table)
+			quarrelTables();
+		if (options.index)
+			quarrelIndexes();
+		if (options.function)
+			quarrelFunctions();
+		if (options.procedure)
+			quarrelProcedures();
+		if (options.foreigntable)
+			quarrelForeignTables();
+		if (options.aggregate)
+			quarrelAggregates();
+		if (options.view)
+			quarrelViews();
+		if (options.matview)
+			quarrelMaterializedViews();
+		if (options.trigger)
+			quarrelTriggers();
+		if (options.rule)
+			quarrelRules();
+		if (options.publication)
+			quarrelPublications();
+		if (options.subscription)
+			quarrelSubscriptions();
+		if (options.policy)
+			quarrelPolicies();
+		if (options.eventtrigger)
+			quarrelEventTriggers();
+		if (options.textsearch)
+		{
+			quarrelTextSearchParsers();
+			quarrelTextSearchTemplates();
+			quarrelTextSearchDicts();
+			quarrelTextSearchConfigs();
+		}
+		if (options.transform)
+			quarrelTransforms();
+		if (options.statistics)
+			quarrelStatistics();
 	}
 
-	if (options.language)
-		quarrelLanguages();
-	if (options.schema)
-		quarrelSchemas();
-	if (options.extension)
-		quarrelExtensions();
-	if (options.accessmethod)
-		quarrelAccessMethods();
-
-	if (options.cast)
-		quarrelCasts();
-	if (options.collation)
-		quarrelCollations();
-	if (options.conversion)
-		quarrelConversions();
-	if (options.domain)
-		quarrelDomains();
-	if (options.type)
-		quarrelTypes();
-	if (options.operator)
-	{
-		quarrelOperators();
-		quarrelOperatorFamilies();
-		quarrelOperatorClasses();
-	}
-	if (options.sequence)
-		quarrelSequences();
-	if (options.table)
-		quarrelTables();
-	if (options.index)
-		quarrelIndexes();
-	if (options.function)
-		quarrelFunctions();
-	if (options.procedure)
-		quarrelProcedures();
-	if (options.foreigntable)
-		quarrelForeignTables();
-	if (options.aggregate)
-		quarrelAggregates();
-	if (options.view)
-		quarrelViews();
-	if (options.matview)
-		quarrelMaterializedViews();
-	if (options.trigger)
-		quarrelTriggers();
-	if (options.rule)
-		quarrelRules();
-	if (options.publication)
-		quarrelPublications();
-	if (options.subscription)
-		quarrelSubscriptions();
-	if (options.policy)
-		quarrelPolicies();
-	if (options.eventtrigger)
-		quarrelEventTriggers();
-	if (options.textsearch)
-	{
-		quarrelTextSearchParsers();
-		quarrelTextSearchTemplates();
-		quarrelTextSearchDicts();
-		quarrelTextSearchConfigs();
-	}
-	if (options.transform)
-		quarrelTransforms();
-	if (options.statistics)
-		quarrelStatistics();
+	
 
 	/*
 	 * Print header iff there is at least one command. Check if one of the
@@ -5225,4 +5260,120 @@ int main(int argc, char *argv[])
 		fprintf(fout, "\n");	/* new line for stdout */
 
 	return 0;
+}
+
+//shiguangsheng
+static void
+compareTables(char *s_table, char *t_table)
+{
+	PQLTable	*tables1 = NULL;	/* target */
+	PQLTable	*tables2 = NULL;	/* source */
+	int			ntables1 = 0;		/* # of tables */
+	int			ntables2 = 0;
+	int			i, j;
+
+	/* false is not return if there is an error */
+	tables1 = getRegularTable(conn1, &ntables1, s_table);
+	getCheckConstraints(conn1, tables1, ntables1);
+	getFKConstraints(conn1, tables1, ntables1);
+	getPKConstraints(conn1, tables1, ntables1);
+
+	tables2 = getRegularTable(conn2, &ntables2, t_table);
+	getCheckConstraints(conn2, tables2, ntables2);
+	getFKConstraints(conn2, tables2, ntables2);
+	getPKConstraints(conn2, tables2, ntables2);
+
+	for (i = 0; i < ntables1; i++)
+		logNoise("server1: %s.%s %u", tables1[i].obj.schemaname,
+				 tables1[i].obj.objectname, tables1[i].obj.oid);
+
+	for (i = 0; i < ntables2; i++)
+		logNoise("server2: %s.%s %u", tables2[i].obj.schemaname,
+				 tables2[i].obj.objectname, tables2[i].obj.oid);
+
+	/*
+	 * We have two sorted lists. Let's figure out which elements are not in the
+	 * other list.
+	 * We have two sorted lists. The strategy is transverse both lists only once
+	 * to figure out relations not presented in the other list.
+	 */
+	i = j = 0;
+	while (i < ntables1 || j < ntables2)
+	{
+		/* End of tables1 list. Print tables2 list until its end. */
+		if (i == ntables1)
+		{
+			logDebug("table %s.%s: server2", tables2[j].obj.schemaname,
+					 tables2[j].obj.objectname);
+
+			getTableAttributes(conn2, &tables2[j]);
+			getOwnedBySequences(conn2, &tables2[j]);
+			if (options.securitylabels)
+				getTableSecurityLabels(conn2, &tables2[j]);
+
+			dumpCreateTable(fpre, fpost, &tables2[j]);
+
+			j++;
+			qstat.tableadded++;
+		}
+		/* End of tables2 list. Print tables1 list until its end. */
+		else if (j == ntables2)
+		{
+			logDebug("table %s.%s: server1", tables1[i].obj.schemaname,
+					 tables1[i].obj.objectname);
+
+			dumpDropTable(fpost, &tables1[i]);
+
+			i++;
+			qstat.tableremoved++;
+		}
+		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) == 0)
+		{
+			logDebug("table %s.%s: server1 server2", tables1[i].obj.schemaname,
+					 tables1[i].obj.objectname);
+
+			getTableAttributes(conn1, &tables1[i]);
+			getTableAttributes(conn2, &tables2[j]);
+			getOwnedBySequences(conn1, &tables1[i]);
+			getOwnedBySequences(conn2, &tables2[j]);
+			if (options.securitylabels)
+			{
+				getTableSecurityLabels(conn1, &tables1[i]);
+				getTableSecurityLabels(conn2, &tables2[j]);
+			}
+
+			dumpAlterTable(fpre, &tables1[i], &tables2[j]);
+
+			i++;
+			j++;
+		}
+		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) < 0)
+		{
+			logDebug("table %s.%s: server1", tables1[i].obj.schemaname,
+					 tables1[i].obj.objectname);
+
+			dumpDropTable(fpost, &tables1[i]);
+
+			i++;
+			qstat.tableremoved++;
+		}
+		else if (compareRelations(&tables1[i].obj, &tables2[j].obj) > 0)
+		{
+			logDebug("table %s.%s: server2", tables2[j].obj.schemaname,
+					 tables2[j].obj.objectname);
+
+			getTableAttributes(conn2, &tables2[j]);
+			getOwnedBySequences(conn2, &tables2[j]);
+			if (options.securitylabels)
+				getTableSecurityLabels(conn2, &tables2[j]);
+
+			dumpCreateTable(fpre, fpost, &tables2[j]);
+
+			j++;
+			qstat.tableadded++;
+		}
+	}
+
+	freeTables(tables1, ntables1);
+	freeTables(tables2, ntables2);
 }
